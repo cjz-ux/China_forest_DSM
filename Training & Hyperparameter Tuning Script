@@ -14,13 +14,13 @@ library(mlr3tuning)
 library(paradox)
 
 # Set working directory
-setwd("D:/China_pyhsical_properties/3.QRF")
+setwd("G:/")
 
 # Set random seed for reproducibility
 set.seed(666)
 
 # Find all combined CSV data files
-data_files <- list.files(pattern = "_combined_data.csv$", full.names = TRUE)
+data_files <- list.files(pattern = "_data.csv$", full.names = TRUE) 
 
 # Create a table to store results
 total_results <- data.frame()
