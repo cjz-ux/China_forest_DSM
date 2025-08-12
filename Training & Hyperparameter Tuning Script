@@ -1,0 +1,121 @@
+# Clear workspace
+rm(list = ls())
+
+# Load required packages
+library(raster)
+library(randomForest)
+library(caret)
+library(quantregForest)
+library(ggplot2)
+library(readxl)
+library(mlr3)
+library(mlr3learners)
+library(mlr3tuning)
+library(paradox)
+
+# Set working directory
+setwd("D:/China_pyhsical_properties/3.QRF")
+
+# Set random seed for reproducibility
+set.seed(666)
+
+# Find all combined CSV data files
+data_files <- list.files(pattern = "_combined_data.csv$", full.names = TRUE)
+
+# Create a table to store results
+total_results <- data.frame()
+
+for (file_path in data_files) {
+  file_name <- basename(file_path)
+  file_info <- strsplit(file_name, "_")[[1]]
+
+  region <- file_info[1]
+  response <- file_info[2]
+  depth <- gsub("\\.csv$", "", file_info[3])
+
+  combined_data <- read.csv(file_path)
+  y <- combined_data[[1]]
+  X_selected <- combined_data[, -1]
+
+  best_features_file <- gsub("_combined_data.csv", "_best_features.rds", file_name)
+  best_features <- readRDS(best_features_file)
+  X_selected <- X_selected[, best_features]
+
+  categorical_vars <- c("FT", "Geol", "Geomor", "Soil")
+  for (var in categorical_vars) {
+    if (var %in% colnames(X_selected)) {
+      X_selected[[var]] <- as.factor(X_selected[[var]])
+    }
+  }
+
+  train_indices <- createDataPartition(y, p = 0.9, list = FALSE)
+  X_train <- X_selected[train_indices, ]
+  y_train <- y[train_indices]
+  X_test <- X_selected[-train_indices, ]
+  y_test <- y[-train_indices]
+
+  # Hyperparameter tuning
+  task <- TaskRegr$new(id = "regression_task", backend = cbind(X_train, y_train), target = "y_train")
+  learner <- lrn("regr.ranger", predict_type = "response")
+  param_set <- ps(
+    mtry = p_int(lower = 2, upper = ncol(X_train)),
+    num.trees = p_int(lower = 100, upper = 1500),
+    min.node.size = p_int(lower = 3, upper = 50)
+  )
+  tuner <- tnr("random_search")
+  instance <- TuningInstanceSingleCrit$new(
+    task = task,
+    learner = learner,
+    resampling = rsmp("cv", folds = 10),
+    measure = msr("regr.rmse"),
+    search_space = param_set,
+    terminator = trm("evals", n_evals = 50)
+  )
+  tuner$optimize(instance)
+  best_params <- instance$result_learner_param_vals
+  print(best_params)
+
+  learner$param_set$values <- best_params
+  learner$train(task)
+
+  # Performance metrics
+  train_predictions <- learner$predict(task)
+  train_mae <- mean(abs(train_predictions$response - y_train))
+  train_rmse <- sqrt(mean((train_predictions$response - y_train)^2))
+  train_r2 <- cor(y_train, train_predictions$response)^2
+  train_me <- mean(train_predictions$response - y_train)
+  train_mec <- 1 - sum((train_predictions$response - y_train)^2) / sum((y_train - mean(y_train))^2)
+
+  test_task <- TaskRegr$new(id = "test_task", backend = cbind(X_test, y_test), target = "y_test")
+  test_predictions <- learner$predict(test_task)
+  test_mae <- mean(abs(test_predictions$response - y_test))
+  test_rmse <- sqrt(mean((test_predictions$response - y_test)^2))
+  test_r2 <- cor(y_test, test_predictions$response)^2
+  test_me <- mean(test_predictions$response - y_test)
+  test_mec <- 1 - sum((test_predictions$response - y_test)^2) / sum((y_test - mean(y_test))^2)
+
+  optimized_performance <- data.frame(
+    Region = region,
+    Response = response,
+    Depth = depth,
+    Best_mtry = best_params$mtry,
+    Best_num.trees = best_params$num.trees,
+    Best_min.node.size = best_params$min.node.size,
+    Train_MAE = train_mae,
+    Train_RMSE = train_rmse,
+    Train_R2 = train_r2,
+    Train_ME = train_me,
+    Train_MEC = train_mec,
+    Test_MAE = test_mae,
+    Test_RMSE = test_rmse,
+    Test_R2 = test_r2,
+    Test_ME = test_me,
+    Test_MEC = test_mec
+  )
+  write.csv(optimized_performance, file = paste0(region, "_", response, depth, "_optimized_performance.csv"), row.names = FALSE)
+  total_results <- rbind(total_results, optimized_performance)
+  print(paste("The optimized performance metrics for", response, "at depth", depth, "in", region, "have been saved."))
+}
+
+write.csv(total_results, "total_optimized_model_results.csv", row.names = FALSE)
+print("All models have been optimized, and the performance metrics have been saved.")
