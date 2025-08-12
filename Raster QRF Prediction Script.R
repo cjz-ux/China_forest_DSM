@@ -6,21 +6,14 @@ library(caret)
 library(quantregForest)
 library(stringr)
 
-setwd("G:/pH_BD_maaping/3.QRF/2.mosaic/1.block_Results")
-
-cache_dir <- "Y:/pH"
-new_output_dir <- "Y:/pH/Results"
-if (!dir.exists(cache_dir)) dir.create(cache_dir, recursive = TRUE)
-new_temp_dir <- "Z:/Temp"
-if (!dir.exists(new_temp_dir)) dir.create(new_temp_dir, recursive = TRUE)
-tempdir()
+setwd("G:/")
 
 regions <- c("China")
-sampling_data_template <- "G:/pH_BD_maaping/3.QRF/2.mosaic/{region}_BD{depth}_combined_data.csv"
-raster_stack_template <- "Z:/ccc_Modeling_Regional_90m/Block/Forests_Raster_stack_item/"
-best_features_template <- "G:/pH_BD_maaping/3.QRF/2.mosaic/{region}_BD{depth}_best_features.rds"
-checkpoint_template <- "G:/pH_BD_maaping/3.QRF/2.mosaic/{region}_BD{depth}_checkpoint.rds"
-depths <- c("515")
+sampling_data_template <- "XX/{region}_BD{depth}_combined_data.csv"
+raster_stack_template <- "XXX/Block/Forests_Raster_stack_item/" #The folder where the grid stack is located
+best_features_template <- "XXXX/{region}_BD{depth}_best_features.rds"
+checkpoint_template <- "XXXXX/{region}_BD{depth}_checkpoint.rds"
+depths <- c("05") #Depth of layer 05 515 1530 3060 60100
 
 region_info <- lapply(regions, function(region) {
   raster_stack_path <- gsub("\\{region\\}", region, raster_stack_template)
